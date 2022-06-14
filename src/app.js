@@ -4,30 +4,102 @@
  */
 
 import { SharedMap } from "fluid-framework";
-import { TinyliciousClient } from "@fluidframework/tinylicious-client";
+import { AzureClient, LOCAL_MODE_TENANT_ID, AzureFunctionTokenProvider } from "@fluidframework/azure-client";
+import { InsecureTokenProvider } from "@fluidframework/test-client-utils"
 
-export const diceValueKey = "dice-value-key";
+// The config is set to run against a local service by default. Run `npx tinylicious` to run locally
+// Update the corresponding properties below with your tenant specific information to run against your tenant.
+// const serviceConfig = {
+//     connection: {
+//         tenantId: LOCAL_MODE_TENANT_ID, // REPLACE WITH YOUR TENANT ID
+//         tokenProvider: new InsecureTokenProvider("" /* REPLACE WITH YOUR PRIMARY KEY */, { id: "userId" }),
+//         orderer: "http://localhost:7070", // REPLACE WITH YOUR ORDERER ENDPOINT
+//         storage: "http://localhost:7070", // REPLACE WITH YOUR STORAGE ENDPOINT
+//     }
+// };
 
-// Load container and render the app
+const userDetails = {
+    email: "pieter_dhondt@trimble.com",
+    address: "Oslo",
+  };
+  
+const serviceConfig = {
+    connection: {
+        tenantId: "f303b80c-68a0-42d1-b83f-07a98945c62c", // REPLACE WITH YOUR TENANT ID
+        tokenProvider: new InsecureTokenProvider("16ecc1f520a8ff2f19c40be247251f1b" /* REPLACE WITH YOUR PRIMARY KEY */,
+            { id: "00172dbb-7a88-4c66-af5c-5bd810fff1ea", name: "Pieter Dhondt", additionalDetails: userDetails }),
+        orderer: "https://alfred.westeurope.fluidrelay.azure.com", // REPLACE WITH YOUR ORDERER ENDPOINT
+        storage: "https://historian.westeurope.fluidrelay.azure.com", // REPLACE WITH YOUR STORAGE ENDPOINT
+    }
+};
 
-const client = new TinyliciousClient();
+const client = new AzureClient(serviceConfig);
+
+const diceValueKey = "dice-value-key";
+
+
 const containerSchema = {
     initialObjects: { diceMap: SharedMap }
 };
 const root = document.getElementById("content");
 
 const createNewDice = async () => {
-    const { container } = await client.createContainer(containerSchema);
+    const { container, services } = await client.createContainer(containerSchema);
+    
     container.initialObjects.diceMap.set(diceValueKey, 1);
     const id = await container.attach();
     renderDiceRoller(container.initialObjects.diceMap, root);
+
+    const { audience } = services;
+    // initAudience(audience);
+
     return id;
 }
 
 const loadExistingDice = async (id) => {
-    const { container } = await client.getContainer(id, containerSchema);
+    const { container, services } = await client.getContainer(id, containerSchema);
+    
     renderDiceRoller(container.initialObjects.diceMap, root);
+
+    const { audience } = services;
+    // initAudience(audience);
 }
+
+
+const audienceDiv = document.createElement("div");
+
+const onAudienceChanged = (audience) => {
+  const members = audience.getMembers();
+  const self = audience.getMyself();
+  const memberStrings = [];
+  const useAzure = true; //process.env.FLUID_CLIENT === "azure";
+
+  members.forEach((member) => {
+    console.info(member);
+    if (member.userId !== (self ? self.userId : "")) {
+
+      if (useAzure) {
+        console.info(member);
+        // const memberString = `${member.userName}: {Email: ${member.additionalDetails ? member.additionalDetails.email : ""},
+        //                 Address: ${member.additionalDetails ? member.additionalDetails.address : ""}}`;
+        // memberStrings.push(memberString);
+      } else {
+        memberStrings.push(member.userName);
+      }
+    }
+  });
+  audienceDiv.innerHTML = `
+            Current User: ${self ? self.userName : ""} <br />
+            Other Users: ${memberStrings.join(", ")}
+        `;
+};
+
+function initAudience(audience)
+{
+    onAudienceChanged(audience);
+    audience.on("membersChanged", onAudienceChanged);
+}
+
 
 async function start() {
     if (location.hash) {
@@ -39,7 +111,6 @@ async function start() {
 }
 
 start().catch((error) => console.error(error));
-
 
 // Define the view
 
