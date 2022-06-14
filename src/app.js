@@ -4,7 +4,7 @@
  */
 
 import { SharedMap } from "fluid-framework";
-import { AzureClient, LOCAL_MODE_TENANT_ID, AzureFunctionTokenProvider } from "@fluidframework/azure-client";
+import { AzureClient, LOCAL_MODE_TENANT_ID } from "@fluidframework/azure-client";
 import { InsecureTokenProvider } from "@fluidframework/test-client-utils"
 
 // The config is set to run against a local service by default. Run `npx tinylicious` to run locally
